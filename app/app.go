@@ -52,7 +52,6 @@ func NewRelayerAdapterFromEnv() (*RelayerAdapter, error) {
 		Gnosis                string `env:"GNOSIS_ADDRESS,required"`
 
 		RelayerPrivateKey string `env:"RELAYER_PRIVATE_KEY,required"`
-		Relayer           string `env:"RELAYER,required"`
 	}
 
 	c := &config{}
@@ -78,12 +77,9 @@ func NewRelayerAdapterFromEnv() (*RelayerAdapter, error) {
 	if err != nil {
 		return nil, err
 	}
+	relayer := crypto.PubkeyToAddress(relayerPrivateKey.Public().(ecdsa.PublicKey))
 
 	if !common.IsHexAddress(c.Gnosis) {
-		return nil, fmt.Errorf("invalid gnosis address")
-	}
-
-	if !common.IsHexAddress(c.Relayer) {
 		return nil, fmt.Errorf("invalid gnosis address")
 	}
 
@@ -93,7 +89,7 @@ func NewRelayerAdapterFromEnv() (*RelayerAdapter, error) {
 		chainID:           chainID,
 		gnosis:            common.HexToAddress(c.Gnosis),
 		relayerPrivateKey: relayerPrivateKey,
-		relayer:           common.HexToAddress(c.Relayer),
+		relayer:           relayer,
 	}, nil
 }
 
@@ -119,10 +115,30 @@ func (adapter *RelayerAdapter) Run(h *bridges.Helper) (interface{}, error) {
 		return nil, err
 	}
 
-	safeData := h.GetParam("functionSelector") + h.GetParam("dataPrefix")[2:] + h.GetParam("result")[2:]
+	functionSelector := "0x"
+	if value := h.GetParam("functionSelector"); len(value) != 0 {
+		functionSelector = value
+	}
+
+	dataPrefix := ""
+	if value := h.GetParam("dataPrefix"); len(value) != 0 {
+		dataPrefix = value[2:]
+	}
+
+	result := ""
+	if value := h.GetParam("result"); len(value) != 0 {
+		result = value[2:]
+	}
+
+	address := "0x0000000000000000000000000000000000000000"
+	if value := h.GetParam("address"); len(value) != 0 {
+		address = value
+	}
+
+	safeData := functionSelector + dataPrefix + result
 
 	safeTx := &GnosisSafeTx{
-		To:        common.HexToAddress(h.GetParam("address")),
+		To:        common.HexToAddress(address),
 		Value:     big.NewInt(0),
 		Data:      common.FromHex(safeData),
 		SafeTxGas: big.NewInt(0),
